@@ -4,7 +4,7 @@ Facial geometry from landmark sets — a mirror-symmetry index and anthropometri
 
 Zero dependencies. Plain ES modules. Runs in Node 18+ and in the browser with no build step.
 
-![The bundled browser demo: MediaPipe landmarks drawn on a portrait, the fitted midline in red, and the results table underneath](docs/demo.png)
+![The bundled browser demo: MediaPipe landmarks drawn on a portrait, the fitted midline in red, the true vertical it is measured against as a dashed line, and the results table underneath](docs/demo.png)
 
 ```
 $ node bin/face-metrics.mjs landmarks.json
@@ -81,7 +81,7 @@ In the browser, the same call, no bundler:
 </script>
 ```
 
-A complete browser demo that runs MediaPipe on a local photo, draws the landmarks and the fitted midline, and prints the table is in [`examples/browser/index.html`](examples/browser/index.html). The photo never leaves the tab. The 3.6 MB face landmarker model is bundled in [`models/`](models/) and served either from jsDelivr or from that path — never from Google's storage, which is unreachable on some networks.
+A complete browser demo that runs MediaPipe on a local photo, draws the landmarks and the fitted midline (against a dashed true vertical, so a tilted capture is visible as a tilt rather than as a crooked drawing), and prints the table is in [`examples/browser/index.html`](examples/browser/index.html). The photo never leaves the tab. The 3.6 MB face landmarker model is bundled in [`models/`](models/) and served either from jsDelivr or from that path — never from Google's storage, which is unreachable on some networks.
 
 ```bash
 node examples/node-quickstart.mjs    # 20 lines, no dependencies

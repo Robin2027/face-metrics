@@ -186,10 +186,14 @@
       }
 
       function render(report, points, scale) {
+        const axisDegrees = report.symmetry.axis.angleDegrees;
+        const tilt = Math.abs(90 - axisDegrees);
+
         const symmetry = document.getElementById('symmetry');
         symmetry.replaceChildren(
           row(['Index', `${report.symmetry.index.toFixed(2)} %`], { numeric: true }),
-          row(['Midline angle', `${report.symmetry.axis.angleDegrees.toFixed(2)}°`], { numeric: true }),
+          row(['Midline angle', `${axisDegrees.toFixed(2)}°`], { numeric: true }),
+          row(['Off vertical', `${tilt.toFixed(2)}°`], { numeric: true }),
           row(['Formula', report.symmetry.formula]),
         );
 
@@ -209,6 +213,13 @@
         );
 
         const notes = [];
+        if (tilt >= 0.5) {
+          notes.push(
+            `The dashed line is true vertical. The fitted midline sits ${tilt.toFixed(2)}° off it because ` +
+              'the head in this photo is tilted, not because the measurement failed: rotating the whole ' +
+              'face leaves the index unchanged, so a tilted capture is not scored as asymmetry.',
+          );
+        }
         if (report.ratios.unavailable.length) {
           notes.push(
             `Not available: ${report.ratios.unavailable.map((item) => `${item.key} (${item.reason})`).join('; ')}.`,
@@ -224,6 +235,20 @@
           context.arc(x * scale, y * scale, 1.4, 0, Math.PI * 2);
           context.fill();
         }
+
+        // True vertical through the same centroid, so the fitted midline's lean
+        // reads as a measurement against a reference instead of as a drawing
+        // error. When the head is level the two lines sit on top of each other.
+        const { x: axisX, y: axisY } = report.symmetry.axis;
+        context.save();
+        context.setLineDash([5, 6]);
+        context.lineWidth = 1;
+        context.strokeStyle = 'rgba(50, 50, 50, 0.45)';
+        context.beginPath();
+        context.moveTo(axisX * scale, (axisY - size) * scale);
+        context.lineTo(axisX * scale, (axisY + size) * scale);
+        context.stroke();
+        context.restore();
 
         const [start, end] = axisSegment(report.symmetry, size);
         context.strokeStyle = 'rgba(196, 90, 60, 0.9)';
