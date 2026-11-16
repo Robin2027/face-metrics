@@ -236,7 +236,10 @@
         output.hidden = false;
       }
 
+      let busy = false;
+
       async function handle(file) {
+        busy = true;
         status.className = 'status';
         status.textContent = 'Finding landmarks…';
 
@@ -267,6 +270,8 @@
         } catch (error) {
           status.className = 'status error';
           status.textContent = error.message;
+        } finally {
+          busy = false;
         }
       }
 
@@ -274,6 +279,19 @@
         const [file] = event.target.files ?? [];
         if (file) handle(file);
       });
+
+      // Warm the model while the visitor is still choosing a photo; otherwise the
+      // 3.6 MB download happens after the click and the page looks frozen.
+      status.textContent = 'Loading the landmark model (3.6 MB)…';
+      loadLandmarker()
+        .then(() => {
+          if (!busy) status.textContent = 'Ready. Pick a photo.';
+        })
+        .catch((error) => {
+          if (busy) return;
+          status.className = 'status error';
+          status.textContent = `Could not load the model: ${error.message}`;
+        });
     </script>
   </body>
 </html>
