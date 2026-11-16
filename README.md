@@ -81,7 +81,7 @@ In the browser, the same call, no bundler:
 </script>
 ```
 
-A complete browser demo that runs MediaPipe on a local photo, draws the landmarks and the fitted midline, and prints the table is in [`examples/browser/index.html`](examples/browser/index.html). The photo never leaves the tab.
+A complete browser demo that runs MediaPipe on a local photo, draws the landmarks and the fitted midline, and prints the table is in [`examples/browser/index.html`](examples/browser/index.html). The photo never leaves the tab, and the 3.6 MB face landmarker model is bundled in [`models/`](models/) rather than fetched from Google's storage, so the demo opens anywhere the page opens — including networks where `storage.googleapis.com` is unreachable.
 
 ```bash
 node examples/node-quickstart.mjs    # 20 lines, no dependencies

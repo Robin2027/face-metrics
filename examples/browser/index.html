@@ -130,8 +130,10 @@
       } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
       import { metrics, axisSegment } from '../../src/index.mjs';
 
-      const MODEL =
-        'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+      // Served from this repository rather than storage.googleapis.com, which is
+      // unreachable from mainland China — the demo should open for anyone who can
+      // reach the page. Same float16 model, 3.6 MB.
+      const MODEL = '../../models/face_landmarker.task';
       const WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
 
       const fileInput = document.getElementById('file');
