@@ -1,0 +1,4 @@
+node_modules/
+*.log
+landmarks*.json
+.DS_Store

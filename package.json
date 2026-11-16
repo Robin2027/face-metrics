@@ -1,0 +1,37 @@
+{
+  "name": "face-metrics",
+  "version": "0.1.0",
+  "description": "Zero-dependency facial geometry from landmark sets: a mirrored Procrustes symmetry index and anthropometric ratios, each with its formula attached.",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
+  "bin": {
+    "face-metrics": "./bin/face-metrics.mjs"
+  },
+  "files": [
+    "src",
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/symmetry.test.mjs test/procrustes.test.mjs test/ratios.test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "face",
+    "facial-landmarks",
+    "symmetry",
+    "procrustes",
+    "anthropometry",
+    "facial-ratios",
+    "mediapipe",
+    "dlib",
+    "computer-vision"
+  ],
+  "license": "MIT"
+}

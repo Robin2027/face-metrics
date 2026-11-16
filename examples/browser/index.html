@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>face-metrics — landmark measurements in the browser</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fbfaf7;
+        --panel: #ffffff;
+        --ink: #1c1c1a;
+        --muted: #6b6a64;
+        --line: #e3e0d8;
+        --accent: #2f6f4f;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16161a;
+          --panel: #1e1e23;
+          --ink: #ecebe6;
+          --muted: #a3a29b;
+          --line: #2f2f36;
+          --accent: #7cc39a;
+        }
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        padding: 2.5rem 1.25rem 4rem;
+        background: var(--bg);
+        color: var(--ink);
+        font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+
+      main { max-width: 760px; margin: 0 auto; }
+
+      h1 { font-size: 1.5rem; margin: 0 0 0.35rem; letter-spacing: -0.01em; }
+
+      .lede { margin: 0 0 1.75rem; color: var(--muted); }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.25rem;
+      }
+
+      .drop {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 120px;
+        border: 1px dashed var(--line);
+        border-radius: 10px;
+        cursor: pointer;
+        text-align: center;
+        padding: 1rem;
+      }
+
+      .drop:focus-within, .drop:hover { border-color: var(--accent); }
+
+      .fine { color: var(--muted); font-size: 0.85rem; margin: 0.75rem 0 0; }
+
+      canvas { width: 100%; height: auto; border-radius: 10px; display: block; }
+
+      table { width: 100%; border-collapse: collapse; margin-top: 1.25rem; font-size: 0.9rem; }
+
+      th, td { text-align: left; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+
+      th { font-weight: 600; color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+
+      td.value { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+      td.label { font-weight: 500; }
+
+      code, .formula { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82em; color: var(--muted); }
+
+      h2 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 1.5rem 0 0; }
+
+      .status { color: var(--muted); font-size: 0.9rem; margin: 0.75rem 0 0; }
+
+      .error { color: #b4281c; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>face-metrics</h1>
+      <p class="lede">
+        Landmarks in, measurements out — and every number carries the formula that produced it.
+      </p>
+
+      <section class="panel">
+        <label class="drop" for="file">
+          <input id="file" type="file" accept="image/*" hidden />
+          <span>Choose a front-facing photo</span>
+        </label>
+        <p class="fine">
+          The image never leaves this tab. It is decoded with <code>createImageBitmap</code>, drawn
+          to a canvas, and read by MediaPipe's face landmarker running locally in WebAssembly. No
+          upload, no server, no storage.
+        </p>
+        <p class="status" id="status">Ready. Pick a photo.</p>
+      </section>
+
+      <section class="panel" id="output" hidden>
+        <canvas id="canvas"></canvas>
+        <h2>Symmetry</h2>
+        <table id="symmetry"></table>
+        <h2>Ratios</h2>
+        <table id="ratios"></table>
+        <p class="fine" id="notes"></p>
+      </section>
+
+      <p class="fine">
+        Measurements, not grades. Ratios like these shift with lens, head pose, expression and the
+        landmark model itself; there is no published set of “ideal” values worth ranking a person
+        by. Nothing here is medical or diagnostic.
+      </p>
+    </main>
+
+    <script type="module">
+      import {
+        FilesetResolver,
+        FaceLandmarker,
+      } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+      import { metrics, axisSegment } from '../../src/index.mjs';
+
+      const MODEL =
+        'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+      const WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
+
+      const fileInput = document.getElementById('file');
+      const status = document.getElementById('status');
+      const output = document.getElementById('output');
+      const canvas = document.getElementById('canvas');
+      const context = canvas.getContext('2d');
+
+      let landmarkerPromise;
+
+      function loadLandmarker() {
+        // Loaded on first use: the model is about 3.7 MB and there is no point
+        // downloading it for someone who never picks a photo.
+        if (!landmarkerPromise) {
+          landmarkerPromise = (async () => {
+            const fileset = await FilesetResolver.forVisionTasks(WASM);
+            return FaceLandmarker.createFromOptions(fileset, {
+              baseOptions: { modelAssetPath: MODEL, delegate: 'GPU' },
+              runningMode: 'IMAGE',
+              numFaces: 1,
+            });
+          })();
+        }
+        return landmarkerPromise;
+      }
+
+      function row(cells, { header = false, numeric = false } = {}) {
+        const tr = document.createElement('tr');
+        for (const [index, text] of cells.entries()) {
+          const isLabel = index === 0 && header;
+          const cell = document.createElement(isLabel ? 'th' : 'td');
+          cell.textContent = text;
+          if (index === 1 && numeric) cell.className = 'value';
+          if (index === 0 && !header) cell.className = 'label';
+          tr.append(cell);
+        }
+        return tr;
+      }
+
+      function render(report, points, scale) {
+        const symmetry = document.getElementById('symmetry');
+        symmetry.replaceChildren(
+          row(['Index', `${report.symmetry.index.toFixed(2)} %`], { numeric: true }),
+          row(['Midline angle', `${report.symmetry.axis.angleDegrees.toFixed(2)}°`], { numeric: true }),
+          row(['Formula', report.symmetry.formula]),
+        );
+
+        const worst = report.symmetry.pairs.slice(0, 3);
+        symmetry.append(
+          row([
+            'Worst pairs',
+            worst.map((pair) => `${pair.label} ${pair.share.toFixed(1)}%`).join(' · '),
+          ]),
+        );
+
+        const ratios = document.getElementById('ratios');
+        ratios.replaceChildren(
+          ...report.ratios.measured.map((item) =>
+            row([item.label, item.value === null ? 'n/a' : item.value.toFixed(4)], { numeric: true }),
+          ),
+        );
+
+        const notes = [];
+        if (report.ratios.unavailable.length) {
+          notes.push(
+            `Not available: ${report.ratios.unavailable.map((item) => `${item.key} (${item.reason})`).join('; ')}.`,
+          );
+        }
+        document.getElementById('notes').textContent = notes.join(' ');
+
+        // Draw the points and the fitted midline.
+        const size = Math.max(canvas.width, canvas.height);
+        context.fillStyle = 'rgba(47, 111, 79, 0.85)';
+        for (const [x, y] of points) {
+          context.beginPath();
+          context.arc(x * scale, y * scale, 1.4, 0, Math.PI * 2);
+          context.fill();
+        }
+
+        const [start, end] = axisSegment(report.symmetry, size);
+        context.strokeStyle = 'rgba(196, 90, 60, 0.9)';
+        context.lineWidth = 1.5;
+        context.beginPath();
+        context.moveTo(start[0] * scale, start[1] * scale);
+        context.lineTo(end[0] * scale, end[1] * scale);
+        context.stroke();
+
+        output.hidden = false;
+      }
+
+      async function handle(file) {
+        status.className = 'status';
+        status.textContent = 'Finding landmarks…';
+
+        try {
+          const bitmap = await createImageBitmap(file);
+          const result = (await loadLandmarker()).detect(bitmap);
+
+          if (!result.faceLandmarks || result.faceLandmarks.length === 0) {
+            throw new Error('No face found. A single, roughly frontal, unobstructed face works best.');
+          }
+
+          // Normalised coordinates become pixels, so the drawing and the
+          // measurements share one frame of reference.
+          const points = result.faceLandmarks[0].map((point) => [
+            point.x * bitmap.width,
+            point.y * bitmap.height,
+          ]);
+
+          const report = metrics(points);
+
+          const scale = Math.min(1, 720 / bitmap.width);
+          canvas.width = Math.round(bitmap.width * scale);
+          canvas.height = Math.round(bitmap.height * scale);
+          context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+          render(report, points, scale);
+          status.textContent = `${report.pointCount} landmarks · ${report.schema}`;
+        } catch (error) {
+          status.className = 'status error';
+          status.textContent = error.message;
+        }
+      }
+
+      fileInput.addEventListener('change', (event) => {
+        const [file] = event.target.files ?? [];
+        if (file) handle(file);
+      });
+    </script>
+  </body>
+</html>
